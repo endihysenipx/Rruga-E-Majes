@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { TileWorld, TileWorldForeground } from '@/components/game/world/TileWorld';
 import {
   getBiomeIndex,
-  getRouteHeight,
+  TILE_WIDTH,
   WORLD_BIOMES,
   WORLD_ROUTE_END,
   WORLD_ROUTE_START,
@@ -47,7 +47,7 @@ export function WalkingStage({ journey, currentSteps, avatarId, isWalking, lastS
   const [viewportWidth, setViewportWidth] = useState(DEFAULT_VIEWPORT_WIDTH);
   const cameraOffset = useRef(new Animated.Value(0)).current;
   const avatarPosition = useRef(new Animated.Value(18)).current;
-  const avatarElevation = useRef(new Animated.Value(getRouteHeight(WORLD_ROUTE_START))).current;
+  const playerWorldPosition = useRef(new Animated.Value(WORLD_ROUTE_START)).current;
   const gait = useRef(new Animated.Value(0)).current;
   const journeyRatio = clamp(currentSteps / Math.max(1, journey.virtualSteps), 0, 1);
   const worldPosition = WORLD_ROUTE_START + (WORLD_ROUTE_END - WORLD_ROUTE_START) * journeyRatio;
@@ -57,7 +57,12 @@ export function WalkingStage({ journey, currentSteps, avatarId, isWalking, lastS
   const avatarSource = avatarId === 'bora' ? visualAssets.walkingAvatars.bora
     : avatarId === 'drini' ? visualAssets.walkingAvatars.drini
       : visualAssets.walkingAvatars.arin;
-  const avatarRise = useMemo(() => Animated.multiply(avatarElevation, -1), [avatarElevation]);
+  const routeElevation = useMemo(() => playerWorldPosition.interpolate({
+    inputRange: WORLD_TILES.map((tile) => tile.index * TILE_WIDTH),
+    outputRange: WORLD_TILES.map((tile) => tile.walkHeight),
+    extrapolate: 'clamp',
+  }), [playerWorldPosition]);
+  const avatarRise = useMemo(() => Animated.multiply(routeElevation, -1), [routeElevation]);
 
   useEffect(() => {
     const cameraMax = Math.max(0, WORLD_WIDTH - viewportWidth);
@@ -67,12 +72,10 @@ export function WalkingStage({ journey, currentSteps, avatarId, isWalking, lastS
       14,
       viewportWidth - AVATAR_FRAME_WIDTH - 14,
     );
-    const elevationTarget = getRouteHeight(worldPosition);
-
     if (!isWalking) {
       cameraOffset.setValue(cameraTarget);
       avatarPosition.setValue(avatarTarget);
-      avatarElevation.setValue(elevationTarget);
+      playerWorldPosition.setValue(worldPosition);
       return undefined;
     }
 
@@ -89,8 +92,8 @@ export function WalkingStage({ journey, currentSteps, avatarId, isWalking, lastS
         easing: Easing.inOut(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.timing(avatarElevation, {
-        toValue: elevationTarget,
+      Animated.timing(playerWorldPosition, {
+        toValue: worldPosition,
         duration: WALK_DURATION,
         easing: Easing.inOut(Easing.cubic),
         useNativeDriver: true,
@@ -98,7 +101,7 @@ export function WalkingStage({ journey, currentSteps, avatarId, isWalking, lastS
     ]);
     travel.start();
     return () => travel.stop();
-  }, [avatarElevation, avatarPosition, cameraOffset, isWalking, viewportWidth, worldPosition]);
+  }, [avatarPosition, cameraOffset, isWalking, playerWorldPosition, viewportWidth, worldPosition]);
 
   useEffect(() => {
     if (!isWalking) {
