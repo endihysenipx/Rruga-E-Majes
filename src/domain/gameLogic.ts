@@ -1,4 +1,4 @@
-import type { DailyGoal, Journey, StepRecord, UserProgress } from './models';
+import type { DailyGoal, Journey, QuestCadence, StepRecord, UserProgress } from './models';
 
 export const STEPS_PER_KM = 1_300;
 
@@ -50,6 +50,32 @@ export function reconcileSourceTotal(
 export function resetDailyGoalIfNeeded(goal: DailyGoal, now = new Date()): DailyGoal {
   const dateKey = getDateKey(now);
   return goal.dateKey === dateKey ? goal : { ...goal, dateKey, todaySteps: 0 };
+}
+
+export function getWeekKey(date = new Date()): string {
+  const monday = new Date(date);
+  const day = monday.getDay() || 7;
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - day + 1);
+  return getDateKey(monday);
+}
+
+export function getQuestClaimKey(questId: string, cadence: QuestCadence, now = new Date()): string {
+  const period = cadence === 'daily' ? getDateKey(now) : getWeekKey(now);
+  return `${questId}:${period}`;
+}
+
+export function updateActivityStreak(progress: UserProgress, now = new Date()): UserProgress {
+  const today = getDateKey(now);
+  if (progress.lastActiveDateKey === today) return progress;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const continues = progress.lastActiveDateKey === getDateKey(yesterday);
+  return {
+    ...progress,
+    streak: continues ? progress.streak + 1 : 1,
+    lastActiveDateKey: today,
+  };
 }
 
 export function advanceJourney(

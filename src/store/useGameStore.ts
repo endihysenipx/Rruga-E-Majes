@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 
-import { achievements, journeys } from '@/data/seed';
-import { advanceJourney, calculateLevel, getDateKey, reconcileSourceTotal, resetDailyGoalIfNeeded } from '@/domain/gameLogic';
-import type { Language, PersistedGameState, StepRecord, UserProfile, UserProgress } from '@/domain/models';
+import { achievements, journeys, quests } from '@/data/seed';
+import { advanceJourney, calculateLevel, getDateKey, getQuestClaimKey, reconcileSourceTotal, resetDailyGoalIfNeeded, updateActivityStreak } from '@/domain/gameLogic';
+import type { InventoryItem, Language, PersistedGameState, RewardMoment, StepRecord, UserProfile, UserProgress } from '@/domain/models';
 import { loadGameState, saveGameState } from '@/services/database';
 import { getStepProvider } from '@/services/steps/providerRegistry';
+import { isQuestClaimed, questProgress } from './selectors';
 
 type BootstrapStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -13,6 +14,7 @@ interface GameState extends PersistedGameState {
   errorMessage?: string;
   isSyncing: boolean;
   lastStepDelta: number;
+  rewardMoment?: RewardMoment;
   bootstrap: () => Promise<void>;
   retryBootstrap: () => Promise<void>;
   setLanguage: (language: Language) => void;
@@ -20,6 +22,8 @@ interface GameState extends PersistedGameState {
   finishOnboarding: () => void;
   chooseJourney: (journeyId: string) => void;
   syncSteps: () => Promise<void>;
+  claimQuest: (questId: string) => void;
+  dismissReward: () => void;
   clearError: () => void;
 }
 
@@ -29,26 +33,52 @@ const initialProfile: UserProfile = {
 
 const initialProgress: UserProgress = {
   currentJourneyId: 'gjeravica', journeySteps: { gjeravica: 0 }, unlockedJourneyIds: ['gjeravica'],
-  completedJourneyIds: [], claimedCheckpointIds: [], earnedAchievementIds: [], totalSteps: 0, totalDistanceKm: 0, streak: 0,
+  completedJourneyIds: [], claimedCheckpointIds: [], checkpointClaimDates: {}, earnedAchievementIds: [], totalSteps: 0, totalDistanceKm: 0, streak: 0,
 };
 
 const initialPersisted: PersistedGameState = {
-  version: 1,
+  version: 2,
   onboardingComplete: false,
   profile: initialProfile,
   progress: initialProgress,
   dailyGoal: { targetSteps: 8_000, todaySteps: 0, dateKey: getDateKey() },
   stepRecords: [],
+  inventory: [],
+  claimedQuestKeys: [],
 };
 
 function persistedSnapshot(state: GameState): PersistedGameState {
   return {
-    version: 1,
+    version: 2,
     onboardingComplete: state.onboardingComplete,
     profile: state.profile,
     progress: state.progress,
     dailyGoal: state.dailyGoal,
     stepRecords: state.stepRecords,
+    inventory: state.inventory,
+    claimedQuestKeys: state.claimedQuestKeys,
+  };
+}
+
+function migrateGameState(saved: PersistedGameState | null): PersistedGameState {
+  if (!saved) return initialPersisted;
+  const legacy = saved as PersistedGameState & {
+    inventory?: InventoryItem[];
+    claimedQuestKeys?: string[];
+    progress: UserProgress & { checkpointClaimDates?: Record<string, string> };
+  };
+  return {
+    ...initialPersisted,
+    ...legacy,
+    version: 2,
+    profile: { ...initialProfile, ...legacy.profile },
+    progress: {
+      ...initialProgress,
+      ...legacy.progress,
+      checkpointClaimDates: legacy.progress.checkpointClaimDates ?? {},
+    },
+    inventory: legacy.inventory ?? [],
+    claimedQuestKeys: legacy.claimedQuestKeys ?? [],
   };
 }
 
@@ -74,13 +104,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   bootstrapStatus: 'idle',
   isSyncing: false,
   lastStepDelta: 0,
+  rewardMoment: undefined,
 
   bootstrap: async () => {
     if (get().bootstrapStatus === 'loading') return;
     set({ bootstrapStatus: 'loading', errorMessage: undefined });
     try {
       const saved = await loadGameState();
-      const state = saved ?? initialPersisted;
+      const state = migrateGameState(saved);
       set({ ...state, dailyGoal: resetDailyGoalIfNeeded(state.dailyGoal), bootstrapStatus: 'ready' });
     } catch {
       set({ bootstrapStatus: 'error', errorMessage: 'errors.database' });
@@ -99,34 +130,82 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
   syncSteps: async () => {
     if (get().isSyncing) return;
-    set({ isSyncing: true, errorMessage: undefined, lastStepDelta: 0 });
+    set({ isSyncing: true, errorMessage: undefined, lastStepDelta: 0, rewardMoment: undefined });
     try {
       const state = get();
       const todayGoal = resetDailyGoalIfNeeded(state.dailyGoal);
       const existingMock = state.stepRecords.find((record) => record.dateKey === todayGoal.dateKey && record.source === 'mock');
       const snapshot = await getStepProvider(existingMock?.sourceTotal ?? 0).getTodaySteps();
       const { delta, record } = reconcileSourceTotal(state.stepRecords, snapshot.total, snapshot.source);
-      const nextProgress = advanceJourney(state.progress, journeys, delta);
+      const advanced = advanceJourney(state.progress, journeys, delta);
+      const nextProgress = delta > 0 ? updateActivityStreak(advanced) : advanced;
       const currentJourney = journeys.find((journey) => journey.id === nextProgress.currentJourneyId);
       const currentSteps = nextProgress.journeySteps[nextProgress.currentJourneyId] ?? 0;
-      const newlyClaimed = currentJourney?.checkpoints.filter((checkpoint) => checkpoint.atSteps <= currentSteps).map((checkpoint) => checkpoint.id) ?? [];
-      const claimed = [...new Set([...nextProgress.claimedCheckpointIds, ...newlyClaimed])];
-      const xpGain = delta > 0 ? Math.max(1, Math.floor(delta / 20)) : 0;
+      const newlyReached = currentJourney?.checkpoints.filter((checkpoint) => checkpoint.atSteps <= currentSteps && !state.progress.claimedCheckpointIds.includes(checkpoint.id)) ?? [];
+      const claimed = [...new Set([...nextProgress.claimedCheckpointIds, ...newlyReached.map((checkpoint) => checkpoint.id)])];
+      const checkpointClaimDates = { ...nextProgress.checkpointClaimDates };
+      newlyReached.forEach((checkpoint) => { checkpointClaimDates[checkpoint.id] = todayGoal.dateKey; });
+      const completedNow = currentJourney ? !state.progress.completedJourneyIds.includes(currentJourney.id) && nextProgress.completedJourneyIds.includes(currentJourney.id) : false;
+      const checkpointCoins = newlyReached.reduce((sum, checkpoint) => sum + (checkpoint.reward.kind === 'coins' ? checkpoint.reward.amount ?? 0 : 0), 0);
+      const routeXp = completedNow ? currentJourney?.rewards.find((reward) => reward.kind === 'xp')?.amount ?? 0 : 0;
+      const routeCoins = completedNow ? currentJourney?.rewards.find((reward) => reward.kind === 'coins')?.amount ?? 0 : 0;
+      const walkXp = delta > 0 ? Math.max(1, Math.floor(delta / 20)) : 0;
+      const xpGain = walkXp + routeXp;
       const xp = state.profile.xp + xpGain;
-      const withAchievements = { ...nextProgress, claimedCheckpointIds: claimed };
+      const withAchievements = { ...nextProgress, claimedCheckpointIds: claimed, checkpointClaimDates };
+      const previousAchievements = new Set(state.progress.earnedAchievementIds);
       withAchievements.earnedAchievementIds = earnAchievements(withAchievements);
+      const newAchievement = achievements.find((achievement) => withAchievements.earnedAchievementIds.includes(achievement.id) && !previousAchievements.has(achievement.id));
+      const inventory = [...state.inventory];
+      newlyReached.filter((checkpoint) => checkpoint.reward.kind === 'story').forEach((checkpoint) => {
+        if (!inventory.some((item) => item.id === checkpoint.reward.itemId)) {
+          inventory.push({ id: checkpoint.reward.itemId ?? checkpoint.id, nameKey: 'collectibles.legendFragment', quantity: 1, acquiredAt: new Date().toISOString() });
+        }
+      });
+      const featuredCheckpoint = newlyReached.at(-1);
+      const rewardMoment: RewardMoment | undefined = delta <= 0 ? undefined : completedNow && currentJourney ? {
+        id: `route-${currentJourney.id}-${Date.now()}`, kind: 'route', titleKey: 'rewards.routeComplete', storyKey: currentJourney.storyKey,
+        xp: xpGain, coins: Math.floor(delta / 120) + checkpointCoins + routeCoins,
+      } : featuredCheckpoint ? {
+        id: `checkpoint-${featuredCheckpoint.id}-${Date.now()}`, kind: 'checkpoint', titleKey: 'rewards.checkpointReached', storyKey: featuredCheckpoint.storyKey,
+        xp: walkXp, coins: Math.floor(delta / 120) + checkpointCoins,
+        collectibleNameKey: featuredCheckpoint.reward.kind === 'story' ? 'collectibles.legendFragment' : undefined,
+      } : newAchievement ? {
+        id: `achievement-${newAchievement.id}-${Date.now()}`, kind: 'achievement', titleKey: newAchievement.titleKey,
+        storyKey: newAchievement.descriptionKey, xp: walkXp, coins: Math.floor(delta / 120),
+      } : {
+        id: `walk-${Date.now()}`, kind: 'walk', titleKey: 'rewards.walkComplete', storyKey: 'rewards.walkCompleteBody',
+        xp: walkXp, coins: Math.floor(delta / 120),
+      };
       set({
         progress: withAchievements,
-        profile: { ...state.profile, xp, level: calculateLevel(xp), coins: state.profile.coins + Math.floor(delta / 120) },
+        profile: { ...state.profile, xp, level: calculateLevel(xp), coins: state.profile.coins + Math.floor(delta / 120) + checkpointCoins + routeCoins },
         dailyGoal: { ...todayGoal, todaySteps: todayGoal.todaySteps + delta },
         stepRecords: replaceRecord(state.stepRecords, record),
+        inventory,
         lastStepDelta: delta,
+        rewardMoment,
         isSyncing: false,
       });
     } catch {
       set({ isSyncing: false, errorMessage: 'errors.sync' });
     }
   },
+  claimQuest: (questId) => {
+    const state = get();
+    const quest = quests.find((item) => item.id === questId);
+    if (!quest || isQuestClaimed(quest, state) || questProgress(quest, state) < quest.target) return;
+    const claimKey = getQuestClaimKey(quest.id, quest.cadence);
+    const xpGain = quest.reward.kind === 'xp' ? quest.reward.amount ?? 0 : 0;
+    const coinGain = quest.reward.kind === 'coins' ? quest.reward.amount ?? 0 : 0;
+    const xp = state.profile.xp + xpGain;
+    set({
+      claimedQuestKeys: [...state.claimedQuestKeys, claimKey],
+      profile: { ...state.profile, xp, level: calculateLevel(xp), coins: state.profile.coins + coinGain },
+      rewardMoment: { id: `quest-${claimKey}`, kind: 'quest', titleKey: quest.titleKey, storyKey: 'rewards.questClaimed', xp: xpGain, coins: coinGain },
+    });
+  },
+  dismissReward: () => set({ rewardMoment: undefined }),
   clearError: () => set({ errorMessage: undefined }),
 }));
 

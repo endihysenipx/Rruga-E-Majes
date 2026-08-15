@@ -14,4 +14,4 @@ export function PrimaryButton({ label, onPress, disabled, loading, variant = 'go
   );
 }
 
-const styles = StyleSheet.create({ base: { minHeight: 54, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg }, gold: { backgroundColor: colors.goldSoft }, ghost: { borderWidth: 1, borderColor: colors.gold, backgroundColor: 'transparent' }, disabled: { opacity: 0.45 }, pressed: { transform: [{ scale: 0.985 }], opacity: 0.9 } });
+const styles = StyleSheet.create({ base: { minHeight: 56, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg }, gold: { backgroundColor: colors.goldSoft, shadowColor: colors.gold, shadowOpacity: 0.24, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4 }, ghost: { borderWidth: 1, borderColor: colors.gold, backgroundColor: 'rgba(8,20,17,0.3)' }, disabled: { opacity: 0.45 }, pressed: { transform: [{ scale: 0.985 }], opacity: 0.9 } });

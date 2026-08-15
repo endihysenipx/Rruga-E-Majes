@@ -63,6 +63,7 @@ export interface UserProgress {
   unlockedJourneyIds: string[];
   completedJourneyIds: string[];
   claimedCheckpointIds: string[];
+  checkpointClaimDates: Record<string, string>;
   earnedAchievementIds: string[];
   totalSteps: number;
   totalDistanceKm: number;
@@ -103,11 +104,23 @@ export interface InventoryItem {
   acquiredAt: string;
 }
 
+export interface RewardMoment {
+  id: string;
+  kind: 'walk' | 'checkpoint' | 'route' | 'quest' | 'achievement';
+  titleKey: string;
+  storyKey?: string;
+  xp: number;
+  coins: number;
+  collectibleNameKey?: string;
+}
+
 export interface PersistedGameState {
-  version: 1;
+  version: 2;
   onboardingComplete: boolean;
   profile: UserProfile;
   progress: UserProgress;
   dailyGoal: DailyGoal;
   stepRecords: StepRecord[];
+  inventory: InventoryItem[];
+  claimedQuestKeys: string[];
 }

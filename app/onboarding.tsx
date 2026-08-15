@@ -1,7 +1,8 @@
+import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { AppText } from '@/components/ui/AppText';
@@ -14,6 +15,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 const avatarIds = ['arin', 'bora', 'drini'] as const;
+const avatarIcons = { arin: 'navigation', bora: 'book-open', drini: 'shield' } as const;
 
 export default function OnboardingScreen() {
   const { t } = useTranslation();
@@ -27,64 +29,57 @@ export default function OnboardingScreen() {
   const finish = useGameStore((state) => state.finishOnboarding);
 
   const complete = () => { finish(); router.replace('/(tabs)'); };
-  const request = async () => {
-    setRequesting(true);
-    await getStepProvider().requestPermission();
-    setRequesting(false);
-    complete();
-  };
+  const request = async () => { setRequesting(true); await getStepProvider().requestPermission(); setRequesting(false); complete(); };
 
   return (
     <Screen>
-      <LinearGradient colors={['#143C33', '#1F3D36', '#101F1C']} style={styles.art}>
-        <View style={styles.moon} /><View style={[styles.peak, styles.peakOne]} /><View style={[styles.peak, styles.peakTwo]} />
-        <View style={styles.artCopy}><AppText variant="caption" color={colors.goldSoft}>{t('onboarding.eyebrow').toLocaleUpperCase()}</AppText><AppText variant="display">{t('onboarding.title')}</AppText></View>
-      </LinearGradient>
+      <ImageBackground source={visualAssets.onboarding} resizeMode='cover' style={styles.art}>
+        <LinearGradient colors={['rgba(4,10,8,0.02)', 'rgba(4,10,8,0.2)', 'rgba(4,10,8,0.94)']} style={styles.artOverlay}>
+          <View style={styles.brand}><View style={styles.brandMark}><Feather name='navigation' color={colors.black} size={18} /></View><AppText variant='label' color={colors.goldSoft}>{t('common.appName')}</AppText></View>
+          <View style={styles.artCopy}><AppText variant='caption' color={colors.goldSoft}>{t('onboarding.eyebrow').toLocaleUpperCase()}</AppText><AppText variant='display'>{t('onboarding.title')}</AppText><AppText color='rgba(247,240,222,0.74)'>{t('onboarding.body')}</AppText></View>
+        </LinearGradient>
+      </ImageBackground>
 
       <View style={styles.dots}>{[0, 1, 2].map((item) => <View key={item} style={[styles.dot, page === item && styles.dotActive]} />)}</View>
 
       {page === 0 ? <View style={styles.section}>
-        <AppText variant="heading">{t('onboarding.language')}</AppText>
-        <AppText color={colors.muted}>{t('onboarding.body')}</AppText>
+        <View><AppText variant='heading'>{t('onboarding.language')}</AppText><AppText variant='caption' color={colors.muted}>{t('onboarding.languageHint')}</AppText></View>
         <View style={styles.row}>{(['sq', 'en'] as Language[]).map((item) => <Choice key={item} selected={language === item} label={item === 'sq' ? 'Shqip' : 'English'} onPress={() => setLanguage(item)} />)}</View>
         <PrimaryButton label={t('common.continue')} onPress={() => setPage(1)} />
       </View> : null}
 
       {page === 1 ? <View style={styles.section}>
-        <AppText variant="heading">{t('onboarding.avatar')}</AppText>
+        <View><AppText variant='heading'>{t('onboarding.avatar')}</AppText><AppText variant='caption' color={colors.muted}>{t('onboarding.avatarHint')}</AppText></View>
         <View style={styles.avatars}>{avatarIds.map((id) => {
           const config = visualAssets.avatars[id];
-          return <Pressable key={id} onPress={() => setAvatar(id)} style={[styles.avatarChoice, avatar === id && styles.selected]}>
-            <LinearGradient colors={config.colors} style={styles.avatar}><AppText variant="title">{config.glyph}</AppText></LinearGradient>
-            <AppText variant="label" style={styles.avatarLabel}>{t(`onboarding.avatars.${id}`)}</AppText>
+          const selected = avatar === id;
+          return <Pressable key={id} onPress={() => setAvatar(id)} style={[styles.avatarChoice, selected && styles.selected]}>
+            <LinearGradient colors={config.colors} style={styles.avatar}><Feather name={avatarIcons[id]} color={colors.ink} size={24} /></LinearGradient>
+            <View style={styles.avatarLabel}><AppText variant='label'>{t(`onboarding.avatars.${id}`)}</AppText><AppText variant='caption' color={colors.muted}>{t(`onboarding.avatarStories.${id}`)}</AppText></View>
+            {selected ? <View style={styles.check}><Feather name='check' color={colors.black} size={14} /></View> : null}
           </Pressable>;
         })}</View>
         <PrimaryButton label={t('common.continue')} onPress={() => setPage(2)} />
-        <PrimaryButton label={t('common.back')} variant="ghost" onPress={() => setPage(0)} />
+        <PrimaryButton label={t('common.back')} variant='ghost' onPress={() => setPage(0)} />
       </View> : null}
 
       {page === 2 ? <View style={styles.section}>
-        <AppText variant="heading">{t('onboarding.permissionTitle')}</AppText>
-        <AppText color={colors.muted}>{t('onboarding.permissionBody')}</AppText>
-        <View style={styles.permissionIcon}><AppText variant="display" color={colors.goldSoft}>✦</AppText></View>
+        <View><AppText variant='heading'>{t('onboarding.permissionTitle')}</AppText><AppText color={colors.muted}>{t('onboarding.permissionBody')}</AppText></View>
+        <LinearGradient colors={['rgba(47,100,78,0.42)', 'rgba(16,35,30,0.9)']} style={styles.permissionCard}><View style={styles.permissionIcon}><Feather name='activity' color={colors.goldSoft} size={30} /></View><View style={styles.permissionCopy}><AppText variant='label'>{t('onboarding.onDevice')}</AppText><AppText variant='caption' color={colors.muted}>{t('onboarding.onDeviceBody')}</AppText></View></LinearGradient>
         <PrimaryButton loading={requesting} label={t('onboarding.enableSteps')} onPress={() => void request()} />
-        <PrimaryButton label={t('onboarding.demoMode')} variant="ghost" onPress={complete} />
+        <PrimaryButton label={t('onboarding.demoMode')} variant='ghost' onPress={complete} />
       </View> : null}
     </Screen>
   );
 }
 
 function Choice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return <Pressable onPress={onPress} style={[styles.choice, selected && styles.selected]}><AppText variant="label" color={selected ? colors.goldSoft : colors.ink}>{label}</AppText></Pressable>;
+  return <Pressable onPress={onPress} style={[styles.choice, selected && styles.selected]}><AppText variant='label' color={selected ? colors.goldSoft : colors.ink}>{label}</AppText>{selected ? <Feather name='check-circle' color={colors.goldSoft} size={17} /> : null}</Pressable>;
 }
 
 const styles = StyleSheet.create({
-  art: { height: 330, marginHorizontal: -spacing.lg, overflow: 'hidden', justifyContent: 'flex-end', padding: spacing.lg },
-  moon: { position: 'absolute', width: 110, height: 110, borderRadius: 55, backgroundColor: 'rgba(239,210,143,0.16)', top: 42, right: 40 },
-  peak: { position: 'absolute', width: 280, height: 280, transform: [{ rotate: '45deg' }], backgroundColor: '#102A25' },
-  peakOne: { top: 160, left: -90 }, peakTwo: { top: 120, right: -120, backgroundColor: '#17342D' }, artCopy: { gap: spacing.sm, zIndex: 2 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm, marginVertical: spacing.lg }, dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.stone }, dotActive: { width: 24, backgroundColor: colors.goldSoft },
-  section: { gap: spacing.md }, row: { flexDirection: 'row', gap: spacing.md }, choice: { flex: 1, height: 54, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }, selected: { borderColor: colors.gold, backgroundColor: 'rgba(213,172,88,0.1)' },
-  avatars: { gap: spacing.sm }, avatarChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border }, avatar: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' }, avatarLabel: { flex: 1 },
-  permissionIcon: { height: 110, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  art: { height: 470, marginHorizontal: -spacing.lg, overflow: 'hidden' }, artOverlay: { flex: 1, justifyContent: 'space-between', padding: spacing.lg }, brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm }, brandMark: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.goldSoft, alignItems: 'center', justifyContent: 'center' }, artCopy: { gap: spacing.sm },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm, marginVertical: spacing.lg }, dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.stone }, dotActive: { width: 28, backgroundColor: colors.goldSoft }, section: { gap: spacing.md }, row: { flexDirection: 'row', gap: spacing.md }, choice: { flex: 1, height: 58, flexDirection: 'row', gap: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }, selected: { borderColor: colors.gold, backgroundColor: 'rgba(201,154,66,0.1)' },
+  avatars: { gap: spacing.sm }, avatarChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }, avatar: { width: 64, height: 64, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }, avatarLabel: { flex: 1, gap: 2 }, check: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.goldSoft, alignItems: 'center', justifyContent: 'center' },
+  permissionCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border }, permissionIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(201,154,66,0.12)', alignItems: 'center', justifyContent: 'center' }, permissionCopy: { flex: 1, gap: spacing.xs },
 });

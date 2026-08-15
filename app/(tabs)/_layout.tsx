@@ -9,7 +9,7 @@ export default function TabLayout() {
   return (
     <Tabs screenOptions={{
       headerShown: false, tabBarActiveTintColor: colors.goldSoft, tabBarInactiveTintColor: colors.muted,
-      tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, height: 78, paddingTop: 8, paddingBottom: 12 },
+      tabBarStyle: { backgroundColor: '#0B1C17', borderTopColor: colors.border, height: 82, paddingTop: 9, paddingBottom: 13 },
       tabBarLabelStyle: { fontSize: 11, fontWeight: '600' }, sceneStyle: { backgroundColor: colors.canvas },
     }}>
       <Tabs.Screen name="index" options={{ title: t('tabs.journey'), tabBarIcon: ({ color, size }) => <Feather name="compass" color={color} size={size} /> }} />
