@@ -23,6 +23,12 @@ const en = {
     checkpointReached: 'Checkpoint reached!', demoHint: 'Development mode adds a short walk each time you sync.',
     streak: 'day flame', nextChapter: 'Next trail chapter', untilChapter: '{{count}} steps until this chapter',
   },
+  walkingScene: {
+    chapter: 'Chapter {{number}}', zone: 'World {{number}} of {{total}}', walking: 'Walking through the world...', resting: 'Waiting for your steps', openJourney: 'Tap for trail chapters',
+    mapSize: 'A journey through {{count}} landscapes', worldScale: '{{tiles}} tiles · {{biomes}} biomes',
+    biomes: { meadow: 'Amber meadow', forest: 'The old pinewood', river: 'The rope bridge', waterfall: 'The silver falls', ruins: 'The forgotten arch', mist: 'The cloud pass', snow: 'The summit ridge' },
+    scenes: { lake: 'Glacial lakeshore', forest: 'The forest bridge', waterfall: 'The silver waterfall', ruins: 'The forgotten sanctuary', mist: 'The gate of mist', ridge: 'The snow ridge', summit: 'The summit fire' },
+  },
   explore: { title: 'Explore', subtitle: 'Choose the next legend to walk into.', all: 'All', routes: '{{count}} routes', comingSoon: 'Future realm', atlas: 'The mountain atlas', discovered: 'Journeys discovered', allJourneys: 'All journeys' },
   route: {
     virtualJourney: 'Virtual journey', estimated: 'About {{count}} steps', difficulty: 'Difficulty', rewards: 'Journey rewards',
@@ -87,6 +93,12 @@ const en = {
 
 const sq = {
   ...en,
+  walkingScene: {
+    chapter: 'Kapitulli {{number}}', zone: 'Bota {{number}} nga {{total}}', walking: 'Po ec\u00ebn n\u00ebp\u00ebr bot\u00eb...', resting: 'Po pret hapat e tu', openJourney: 'Preke p\u00ebr kapitujt e shtegut',
+    mapSize: 'Udh\u00ebtim n\u00ebp\u00ebr {{count}} peizazhe', worldScale: '{{tiles}} tile · {{biomes}} biome',
+    biomes: { meadow: 'Livadhi i art\u00eb', forest: 'Pylli i vjet\u00ebr', river: 'Ura e litarit', waterfall: 'Uj\u00ebvara e argjendt\u00eb', ruins: 'Harku i harruar', mist: 'Qafa e reve', snow: 'Kreshta e maj\u00ebs' },
+    scenes: { lake: 'Bregu akullnajor', forest: 'Ura e pyllit', waterfall: 'Uj\u00ebvara e argjendt\u00eb', ruins: 'Shenjt\u00ebrorja e harruar', mist: 'Porta e mjegull\u00ebs', ridge: 'Kreshta e bor\u00ebs', summit: 'Zjarri i maj\u00ebs' },
+  },
   common: { ...en.common, continue: 'Vazhdo', back: 'Prapa', locked: 'E mbyllur', complete: 'Përfunduar', steps: 'hapa', loading: 'Po përgatisim udhëtimin…', retry: 'Provo përsëri', noData: 'Ende nuk ka asgjë për të shfaqur.', level: 'Niveli {{level}}', remaining: 'Edhe {{count}} hapa' },
   tabs: { journey: 'Udhëtimi', explore: 'Eksploro', quests: 'Misionet', profile: 'Profili' },
   onboarding: {
